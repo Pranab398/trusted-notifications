@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HDFC Trusted Notifications</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; gap: 20px; padding: 20px; }
+        
+        /* Layout */
+        .left-panel { flex: 1; max-width: 400px; }
+        .right-panel { flex: 1; display: flex; gap: 20px;}
+
+        /* Admin Card */
+        .admin-box { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .btn { width: 100%; padding: 15px; margin-bottom: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; }
+        .btn-blue { background: #004c8f; }
+        .btn-orange { background: #e67e22; }
+        .btn-red { background: #c0392b; }
+        .btn-green { background: #27ae60; }
+
+        /* The Phone */
+        .phone {
+            width: 320px; height: 650px; background: white; border-radius: 30px;
+            border: 8px solid #333; overflow: hidden; position: relative;
+            flex-shrink: 0;
+        }
+        .header { background: #004c8f; color: white; padding: 15px; text-align: center; font-weight: bold; }
+        .screen { padding: 10px; height: 550px; overflow-y: auto; background: #fafafa; }
+
+        /* Notifications */
+        .card { background: white; border-left: 5px solid #ccc; margin-bottom: 10px; padding: 10px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); animation: popIn 0.3s ease; }
+        .trusted { border-left-color: #27ae60; }
+        .fraud { border-left-color: #c0392b; background: #fff5f5; }
+        
+        /* Analytics Chart */
+        .chart-box { background: white; padding: 20px; border-radius: 10px; flex-grow: 1; height: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="left-panel">
+        <div class="admin-box">
+            <h2>📢 Command Center</h2>
+            <button class="btn btn-blue" onclick="sendAlert('OTP_LOGIN')">Send OTP (Critical)</button>
+            <button class="btn btn-orange" onclick="sendAlert('TRANSACTION')">Send Transaction</button>
+            <button class="btn btn-red" onclick="simulateFraud()">⚠️ Simulate Phishing</button>
+            <hr>
+            <h3>🚀 Bulk Testing</h3>
+            <p>Load 'Event Data.csv' and simulate traffic.</p>
+            <button class="btn btn-green" onclick="runSimulation()">▶ Run Batch Simulation</button>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="phone">
+            <div class="header">My Mobile App</div>
+            <div class="screen" id="notificationList"></div>
+        </div>
+
+        <div class="chart-box">
+            <h3>📊 Live Reliability Stats</h3>
+            <canvas id="myChart"></canvas>
+            <p><small>Data Source: Event_Type_Stats.csv</small></p>
+        </div>
+    </div>
+
+    <script>
+        // 1. SEND ALERT
+        async function sendAlert(type) {
+            await fetch('http://127.0.0.1:8000/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: "User_Manual", event_type: type, content: { "msg": "Test" } })
+            });
+        }
+
+        // 2. RUN SIMULATION (Reads your CSV)
+        async function runSimulation() {
+            await fetch('http://127.0.0.1:8000/simulate', { method: 'POST' });
+            alert("Simulation Started! Watch the phone screen.");
+        }
+
+        // 3. FETCH NOTIFICATIONS
+        async function fetchNotifications() {
+            const res = await fetch('http://127.0.0.1:8000/notifications');
+            const data = await res.json();
+            const list = document.getElementById('notificationList');
+            list.innerHTML = "";
+            
+            data.reverse().forEach(msg => {
+                let isTrusted = msg.verified;
+                let badge = isTrusted ? '<span style="color:#27ae60">✔ TRUSTED</span>' : '';
+                list.innerHTML += `
+                    <div class="card ${isTrusted ? 'trusted' : ''}">
+                        <div style="font-size:12px; font-weight:bold;">${badge}</div>
+                        <strong>${msg.type}</strong><br>
+                        <small>${msg.status}</small><br>
+                        <small style="color:gray">${msg.user}</small>
+                    </div>`;
+            });
+        }
+
+        // 4. LOAD CHART (Reads your Stats CSV)
+        async function loadChart() {
+            const res = await fetch('http://127.0.0.1:8000/analytics');
+            const data = await res.json();
+
+            const labels = data.map(d => d.Event_Type);
+            const retryRates = data.map(d => d.Retry_Percentage);
+
+            new Chart(document.getElementById('myChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Retry Rate (%) - Lower is Better',
+                        data: retryRates,
+                        backgroundColor: '#004c8f'
+                    }]
+                }
+            });
+        }
+
+        // Init
+        setInterval(fetchNotifications, 2000);
+        loadChart();
+
+        // Fraud Simulation Helper
+        function simulateFraud() {
+            document.getElementById('notificationList').innerHTML = `
+                <div class="card fraud">
+                    <div style="color:#c0392b; font-weight:bold">⚠️ UNVERIFIED</div>
+                    <strong>Account Blocked</strong><br>
+                    <small>Click to verify KYC.</small>
+                </div>` + document.getElementById('notificationList').innerHTML;
+        }
+    </script>
+</body>
+</html>
